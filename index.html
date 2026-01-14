@@ -6,7 +6,8 @@
 
         <title>Sketch</title>
 
-        <link rel="stylesheet" type="text/css" href="style.css" />
+        <link href="style.css" rel="stylesheet" type="text/css" />
+        <link href="themes/prismjs-atom-dark.css" rel="stylesheet" />
 
         <script src="libraries/p5.min.js"></script>
         <script src="libraries/p5.sound.min.js"></script>
@@ -19,7 +20,6 @@
             href="https://fonts.googleapis.com/css?family=JetBrains Mono"
             rel="stylesheet"
         />
-        <link href="themes/prismjs-atom-dark.css" rel="stylesheet" />
         <script src="https://cdn.jsdelivr.net/npm/prismjs/prism.js"></script>
     </head>
 
@@ -29,7 +29,7 @@
         <script src="sketch.js"></script>
         <main class="flex flex-row items-center justify-center py-16 gap-16">
             <div class="flex justify-center" id="canvas-parent"></div>
-            <div class="opacity-75 w-1/6">
+            <!-- <div class="opacity-75 w-1/6">
                 <pre class="text-white text-center">
                 <code class="language-js">
                     for (let gy = 0; gy &lt; rows; gy++) {
@@ -63,7 +63,7 @@
         }
     }
                 </code></pre>
-            </div>
+            </div> -->
         </main>
 
         <div class="text-white text-center flex flex-col gap-0 w-auto">

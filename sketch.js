@@ -32,7 +32,7 @@ function setup() {
     rows = floor(HEIGHT / TEXT_SCALE);
 
     dynamic = random(1) < 0.5;
-    console.log(dynamic);
+    document.title = "komadiina | ognjen komadina";
 }
 
 let dt = 0;
