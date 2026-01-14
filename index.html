@@ -1,18 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>Sketch</title>
+        <title>Sketch</title>
 
-    <link rel="stylesheet" type="text/css" href="style.css">
+        <link rel="stylesheet" type="text/css" href="style.css" />
 
-    <script src="libraries/p5.min.js"></script>
-    <script src="libraries/p5.sound.min.js"></script>
-  </head>
+        <script src="libraries/p5.min.js"></script>
+        <script src="libraries/p5.sound.min.js"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/prismjs/themes/prism.css"
+        />
+        <link
+            href="https://fonts.googleapis.com/css?family=JetBrains Mono"
+            rel="stylesheet"
+        />
+        <link href="themes/prismjs-atom-dark.css" rel="stylesheet" />
+        <script src="https://cdn.jsdelivr.net/npm/prismjs/prism.js"></script>
+    </head>
 
-  <body>
-    <script src="sketch.js"></script>
-  </body>
+    <body
+        class="bg-[rgba(11,11,11,1)] min-h-screen flex flex-col items-center justify-center gap-8 w-full"
+    >
+        <script src="sketch.js"></script>
+        <main class="flex flex-row items-center justify-center py-16 gap-16">
+            <div class="flex justify-center" id="canvas-parent"></div>
+            <div class="opacity-75 w-1/6">
+                <pre class="text-white text-center">
+                <code class="language-js">
+                    for (let gy = 0; gy &lt; rows; gy++) {
+        for (let gx = 0; gx &lt; columns; gx++) {
+            let tx = gx * TEXT_SCALE;
+            let ty = gy * TEXT_SCALE;
+            let d = dist(tx, ty, origin.x, origin.y);
+            let t = constrain(d / maxDist, 0, 1);
+            let glyph = blank;
+
+            if (t &lt; 0.966) {
+                let n = noise(
+                    gx * 0.05 + 100,
+                    gy * 0.12 + 100,
+                    frameCount * 0.01
+                );
+                let f = dynamic
+                    ? dist((n * tx) / 2, origin.x, ty / 2, origin.y) * 0.02
+                    : dist((n * tx) / 2, ty / 2, origin.x, origin.y) * 0.02;
+                let offs = sin(frameCount * 0.04 + f);
+                t *= offs;
+                let idx = floor(map(t, 0, 1, 0, glyphs.length));
+                idx = constrain(idx - glyphOffset, 0, glyphs.length - 1);
+
+                if (!idx) glyph = blank;
+                else glyph = glyphs[idx];
+            }
+
+            fill(255);
+            text(glyph, gx * TEXT_SCALE, gy * TEXT_SCALE);
+        }
+    }
+                </code></pre>
+            </div>
+        </main>
+
+        <div class="text-white text-center flex flex-col gap-0 w-auto">
+            <p class="text-4xl font-[400] mb-2">komadiina</p>
+            <p class="text-lg font-[300] mb-2">
+                ognjen komadina | software engineer
+            </p>
+            <div class="flex flex-row gap-4 justify-center">
+                <a
+                    href="https://github.com/komadiina"
+                    class="text-sm text-blue-500 hover:text-blue-300 transition-colors"
+                    >github</a
+                >
+
+                <a
+                    href="https://github.com/komadiina"
+                    class="text-sm text-blue-500 hover:text-blue-300 transition-colors"
+                    >linkedin</a
+                >
+            </div>
+        </div>
+    </body>
 </html>
