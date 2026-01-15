@@ -2,11 +2,12 @@ const glyphs =
     // "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,\"^`'."
     "$@B%/\\+=><~-;:,.".split("").reverse();
 const blank = " ";
-const TEXT_SCALE = 12;
+const TEXT_SCALE = 8;
 
 const D = 468;
 const WIDTH = D * 2;
 const HEIGHT = D;
+const W = WIDTH, H = HEIGHT;
 let columns, rows;
 
 const origin = { x: WIDTH / 2, y: HEIGHT / 2 };
@@ -17,12 +18,41 @@ const corners = [
     { x: WIDTH, y: HEIGHT },
 ];
 
+const PASSES = 50,
+    ADJACENT_CRITERIA = 6, // 3x3
+    NEARBY_CRITERIA = 10, // 5x5
+    DENSITY = 0.565;
+
 const gradients = [
     (n, tx, ty, dx, dy) => dist((n * tx) / 2, ty / 2, dx, dy) * 0.02,
     (n, tx, ty, dx, dy) => dist((n * tx) / 2, dx, ty / 2, dy) * 0.02,
+    (n, tx, ty, dx, dy) => dist(cos(tx), tan(ty), cos(dx), tan(n)),
+    
+    // gpt-generated shader patterns
     (n, tx, ty, dx, dy) =>
-        dist(cos((n * tx) / 2) + tx, n * ty, dx, sin((dy * dy) / 4) + dy) * 0.2,
-    (n, tx, ty, dx, dy) => dist(cos(tx), ty, cos(dx), dy),
+        sin(dist(tx, ty, dx, dy) * 0.04 - n * 6),
+    (n, tx, ty, dx, dy) =>
+        sin(dist(tx, ty, dx, dy) * 0.06 + n * 4),
+    (n, tx, ty, dx, dy) =>
+        sin(atan2(ty - dy, tx - dx) * 8 + dist(tx, ty, dx, dy) * 0.03),
+    (n, tx, ty, dx, dy) =>
+        sin(tx * 0.05 + n * 4) + cos(ty * 0.05 + n * 4),
+    (n, tx, ty, dx, dy) =>
+        sin(tx * 0.04 + sin(ty * 0.04 + n * 3)),
+    (n, tx, ty, dx, dy) =>
+        sin(ty * 0.1 + n * 6) * cos(tx * 0.02),
+    (n, tx, ty, dx, dy) =>
+        sin(tx * ty * 0.0004 + n * 4),
+    (n, tx, ty, dx, dy) =>
+        sin(tx * 0.05 + ty * 0.03 + n * 5),
+    (n, tx, ty, dx, dy) =>
+        abs(sin(tx * 0.1) * cos(ty * 0.1 + n)),
+    (n, tx, ty, dx, dy) =>
+        sin(atan2(ty - dy, tx - dx) * 6 + dist(tx, ty, dx, dy) * 0.04),
+    (n, tx, ty, dx, dy) =>
+        1 / (1 + dist(tx, ty, dx, dy) * 0.05 + n),
+    (n, tx, ty, dx, dy) =>
+        sin(atan2(ty - dy, tx - dx) * 4 + n * 5),
 ];
 
 let dt = 0;
@@ -33,6 +63,9 @@ let dynamicGradient;
 let velX, velY, density;
 let mouseVelocityVec, mouseSpeed;
 let usingMouse = true;
+let cellularAutomata = false;
+
+function drawFunc() { }
 
 function setup() {
     const canv = createCanvas(WIDTH, HEIGHT);
@@ -48,13 +81,20 @@ function setup() {
 
     dynamicGradient = floor(random(0, gradients.length));
     usingMouse = random() < 0.5;
-    usingMouse = true;
+    if (!usingMouse) cellularAutomata = random() < 0.25;
 
-    console.log(`using anim=${dynamicGradient}, mouse=${usingMouse}`);
     document.title = "komadiina | ognjen komadina";
     mouseVelocityVec = createVector(mouseX, mouseY);
-
+    if (cellularAutomata) {
+        console.log(`carving random cave...`);
+    }
+    else {
+        console.log(`using anim=${dynamicGradient}, mouse=${usingMouse}`);
+    }
+    
+    drawFunc = drawShader;
     if (usingMouse) initField();
+    else if (cellularAutomata) { initBuffers(); drawFunc = drawCellular; }
 }
 
 function initField() {
@@ -190,6 +230,17 @@ let mouseCalc = (gx, gy, maxDist) => {
 let noMouseCalc = (gx, gy, maxDist) => {
     let tx = gx * TEXT_SCALE;
     let ty = gy * TEXT_SCALE;
+
+    (tx =
+        tx * cos((frameCount * PI * 0.03) / 4) -
+        ty * sin((frameCount * PI * 0.03) / 2)),
+        (ty =
+            tx * sin((frameCount * PI * 0.03) / 4) +
+            ty * cos((frameCount * PI * 0.03) / 2));
+
+    ty = 1.1 * map(ty, gy * TEXT_SCALE, ty, 0, gy * TEXT_SCALE);
+    tx = (1.0 + random(0.1)) * map(tx, gx * TEXT_SCALE, tx, 0, gx * TEXT_SCALE);
+
     let d = dist(tx, ty, origin.x, origin.y);
     let t = constrain(d / maxDist, 0, 1);
     let glyph = blank;
@@ -212,9 +263,140 @@ let noMouseCalc = (gx, gy, maxDist) => {
     }
 };
 
-function draw() {
-    background(11);
+let epoch = 1;
+let grid, next, flooded;
+let randomColumn, randomRow;
 
+function initBuffers() {
+  grid = new Uint8Array(W * H);
+  next = new Uint8Array(W * H);
+  flooded = new Uint8Array(W * H);
+
+  randomColumn = Math.round(random(4, W - 4));
+  randomRow = Math.round(random(4, H - 4));
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let idx = x + y * W;
+
+      if (x == 0 || y == 0 || x == W - 1 || y == H - 1) grid[idx] = 1;
+      // else if (abs(W - abs(x - y)) < W / 2) grid[idx] = 0
+      else if (abs(x - randomColumn) > 2 && abs(y - randomRow) > 2 && random() < DENSITY) grid[idx] = 1;
+      else grid[idx] = 0;
+    }
+  }
+}
+
+function countAdjacent(grid, w, h, x, y) {
+  let adjacent = 0;
+
+  for (let dy = y - 1; dy <= y + 1; dy++) {
+    for (let dx = x - 1; dx <= x + 1; dx++) {
+      if (grid[dx + dy * w] === 1) adjacent++;
+    }
+  }
+
+  return adjacent;
+}
+
+function countNearby(grid, w, h, x, y) {
+  let nearby = 0;
+  let delta = 2;
+
+  for (let dy = y - delta; dy <= y + delta; dy++) {
+    for (let dx = x - delta; dx <= x + delta; dx++) {
+      if (Math.abs(dx - x) == 2 && Math.abs(dy - y) == 2) continue; // 0,0
+      else if (dx < 0 || dx > w || dy < 0 || dy > h) continue;
+      if (grid[dx + dy * w] === 1) nearby++;
+    }
+  }
+
+  return nearby;
+}
+
+function placeWall(grid, w, h, x, y) {
+  let adj = countAdjacent(grid, w, h, x, y);
+  let near = countNearby(grid, w, h, x, y);
+
+  if (adj >= ADJACENT_CRITERIA) return 1; // grow wall, enough adjacent walls
+  if (near <= NEARBY_CRITERIA) return 0; // collapse wall, not enough nearby walls
+
+  return grid[x + y * w]; //noop
+}
+
+function step() {
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      let idx = x + y * W;
+      if (x == 0 || y == 0 || x == width - 1 || y == height - 1) next[idx] = 1;
+      else next[idx] = placeWall(grid, W, H, x, y);
+    }
+  }
+
+  for (let x = 0; x < W; x++) {
+    next[x] = 1;
+    next[x + (H - 1) * W] = 1;
+  }
+
+  for (let y = 0; y < H; y++) {
+    next[y * W] = 1;
+    next[y * W + W - 1] = 1;
+  }
+
+  let tmp = grid;
+  grid = next;
+  next = tmp;
+}
+
+function dfs() {
+  let stack = [{ x: randomColumn, y: randomRow }];
+  let visited = new Uint8Array(W * H);
+
+  while (stack.length) {
+    let { x, y } = stack.pop();
+    let i = x + y * W;
+
+    if (visited[i]) continue;
+    if (grid[i] === 1) continue;
+    visited[i] = 1;
+    let nextNeighbors = []
+
+    if (x > 0) nextNeighbors.push({ x: x - 1, y });
+    if (x < W - 1) nextNeighbors.push({ x: x + 1, y });
+    if (y > 0) nextNeighbors.push({ x, y: y - 1 });
+    if (y < H - 1) nextNeighbors.push({ x, y: y + 1 });
+
+    let toVisit = []
+    for (let n of nextNeighbors)
+      if (grid[n.x + n.y * W] == grid[x + y * W]) toVisit.push(n) // connects same with neighbor
+
+    if (toVisit.length > 3) stack.push(...nextNeighbors)
+  }
+
+  for (let i = 0; i < W * H; i++) {
+    if (!visited[i]) grid[i] = 1; // fill unreachable voids
+  }
+}
+
+function updateGrid() {
+  loadPixels();
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let c = grid[x + y * W] * 165; // 0 || 255
+      let idx = (x + y * W) * 4; // expand to 8bpp RGBA
+
+      pixels[idx + 0] = pixels[idx + 1] = pixels[idx + 2] = c;
+      pixels[idx + 3] = 255;
+    }
+  }
+
+  updatePixels();
+}
+
+
+function drawShader() {
+    background(11);
     let maxDist = 0;
     for (let c of corners) {
         maxDist = max(maxDist, dist(origin.x, origin.y, c.x, c.y));
@@ -234,4 +416,21 @@ function draw() {
             text(calc(gx, gy, maxDist), gx * TEXT_SCALE, gy * TEXT_SCALE);
         }
     }
+}
+
+function drawCellular() {
+      step();
+  updateGrid();
+
+  if (epoch >= PASSES) {
+    epoch = epoch - 1;
+    dfs();
+    updateGrid();
+    noLoop();
+  }
+  epoch++;
+}
+
+function draw() {
+    drawFunc();
 }
