@@ -23,3 +23,13 @@ pre[class*="language-"] * {
     text-rendering: geometricPrecision;
     background: rgb(11, 11, 11) !important;
 }
+
+div#canvas-parent {
+    /* width: 80%; */
+    /* height: 33vh; */
+    overflow: hidden;
+}
+
+canvas {
+    clip-path: inset(0 20% 0 20%);
+}
