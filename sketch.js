@@ -83,7 +83,7 @@ let randomColumn, randomRow;
 function drawFunc() {}
 
 function setup() {
-    WIDTH = W = vw;
+    WIDTH = W = constrain(vw, 0, 648);
     HEIGHT = H = (2 * vh) / 5;
     origin = { x: WIDTH / 2, y: HEIGHT / 2 };
 
